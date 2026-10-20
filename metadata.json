@@ -1,0 +1,6 @@
+{
+  "name": "Bemo",
+  "description": "Personal finance and wishlist tracker to give every cedi a job with calm budgeting and goals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

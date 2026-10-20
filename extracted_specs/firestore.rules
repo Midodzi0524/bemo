@@ -1,0 +1,265 @@
+rules_version = '2';
+
+// Production rules for <APP_NAME>.
+// Every user can read/write ONLY their own subtree: /users/{uid}/**
+// Writes are validated for shape, types and size.
+// NOTE: these rules were written to match DESIGN_SYSTEM.md §9. They MUST be
+// exercised with the Firebase Emulator tests (see PROJECT_STRUCTURE_AND_CI.md §8)
+// before every deploy. Update the key lists here whenever the schema changes.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn()      { return request.auth != null; }
+    function isOwner(uid)    { return signedIn() && request.auth.uid == uid; }
+
+    function isStr(v, minLen, maxLen) {
+      return v is string && v.size() >= minLen && v.size() <= maxLen;
+    }
+    // Non-negative integer pesewas, max ₵999,999,999.99
+    function isMoney(v)      { return v is int && v >= 0 && v <= 99999999999; }
+    function isSignedMoney(v){ return v is int && v >= -99999999999 && v <= 99999999999; }
+
+    function optStr(d, k, maxLen) {
+      return !(k in d) || d[k] == null || isStr(d[k], 0, maxLen);
+    }
+    function optId(d, k) {
+      return !(k in d) || d[k] == null || isStr(d[k], 1, 64);
+    }
+    function optMoney(d, k) {
+      return !(k in d) || d[k] == null || isMoney(d[k]);
+    }
+    function optTs(d, k) {
+      return !(k in d) || d[k] == null || d[k] is timestamp;
+    }
+    function optBool(d, k) {
+      return !(k in d) || d[k] == null || d[k] is bool;
+    }
+    function optInt(d, k, lo, hi) {
+      return !(k in d) || d[k] == null || (d[k] is int && d[k] >= lo && d[k] <= hi);
+    }
+    function serverStamped(d) { return d.updatedAt == request.time; }
+
+    // ---------- document validators ----------
+    function validUser(d) {
+      return d.keys().hasOnly(['createdAt', 'displayName', 'settings', 'schemaVersion'])
+          && d.schemaVersion is int
+          && (!('settings' in d) || (d.settings is map && d.settings.size() <= 40))
+          && optStr(d, 'displayName', 80);
+    }
+
+    function validTransaction(d) {
+      return d.keys().hasOnly([
+               'type', 'amountMinor', 'categoryId', 'accountId', 'toAccountId',
+               'wishlistItemId', 'note', 'payee', 'eventId', 'eventRole',
+               'occurredAt', 'monthKey', 'status', 'recurringRuleId', 'tagIds',
+               'splits', 'roundUpMinor', 'createdAt', 'updatedAt', 'deletedAt'
+             ])
+          && d.keys().hasAll(['type', 'amountMinor', 'accountId', 'occurredAt',
+                              'monthKey', 'status', 'createdAt', 'updatedAt'])
+          && d.type in ['income', 'expense', 'saving', 'transfer', 'adjustment']
+          && (d.type == 'adjustment' ? isSignedMoney(d.amountMinor) : isMoney(d.amountMinor))
+          && isStr(d.accountId, 1, 64)
+          && d.occurredAt is timestamp
+          && d.monthKey is string
+          && d.monthKey.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+          && d.status in ['posted', 'pending']
+          && optId(d, 'categoryId') && optId(d, 'toAccountId')
+          && optId(d, 'wishlistItemId') && optId(d, 'recurringRuleId') && optId(d, 'eventId')
+          && optStr(d, 'note', 200) && optStr(d, 'payee', 80)
+          && (!('eventRole' in d) || d.eventRole == null || d.eventRole in ['gave', 'received'])
+          && (!('tagIds' in d) || d.tagIds == null || (d.tagIds is list && d.tagIds.size() <= 10))
+          && (!('splits' in d) || d.splits == null || (d.splits is list && d.splits.size() <= 20))
+          && optMoney(d, 'roundUpMinor')
+          && d.createdAt is timestamp
+          && optTs(d, 'deletedAt')
+          && (d.type != 'transfer' || (isStr(d.get('toAccountId', null), 1, 64) && d.toAccountId != d.accountId))
+          && (d.type != 'expense' || isStr(d.get('categoryId', null), 1, 64))
+          && serverStamped(d);
+    }
+
+    function validAccount(d) {
+      return d.keys().hasOnly(['name', 'emoji', 'kind', 'openingBalanceMinor', 'includeInNet',
+                               'order', 'archived', 'feeTiers', 'createdAt', 'updatedAt', 'deletedAt'])
+          && d.keys().hasAll(['name', 'kind', 'openingBalanceMinor', 'createdAt', 'updatedAt'])
+          && isStr(d.name, 1, 40)
+          && optStr(d, 'emoji', 16)
+          && d.kind in ['cash', 'momo', 'bank', 'savings', 'other']
+          && isSignedMoney(d.openingBalanceMinor)
+          && optBool(d, 'includeInNet') && optBool(d, 'archived')
+          && optInt(d, 'order', 0, 100000)
+          && (!('feeTiers' in d) || d.feeTiers == null || (d.feeTiers is list && d.feeTiers.size() <= 30))
+          && d.createdAt is timestamp && optTs(d, 'deletedAt')
+          && serverStamped(d);
+    }
+
+    function validCategory(d) {
+      return d.keys().hasOnly(['name', 'emoji', 'tintIndex', 'order', 'archived', 'kind',
+                               'groupId', 'rollover', 'createdAt', 'updatedAt', 'deletedAt'])
+          && d.keys().hasAll(['name', 'kind', 'createdAt', 'updatedAt'])
+          && isStr(d.name, 1, 40)
+          && optStr(d, 'emoji', 16)
+          && d.kind in ['expense', 'saving']
+          && optInt(d, 'tintIndex', 0, 5) && optInt(d, 'order', 0, 100000)
+          && optBool(d, 'archived') && optBool(d, 'rollover')
+          && (!('groupId' in d) || d.groupId == null || d.groupId in ['needs', 'wants', 'savings'])
+          && d.createdAt is timestamp && optTs(d, 'deletedAt')
+          && serverStamped(d);
+    }
+
+    function validBudget(d, id) {
+      return d.keys().hasOnly(['monthKey', 'categoryId', 'allocatedMinor', 'updatedAt'])
+          && d.keys().hasAll(['monthKey', 'categoryId', 'allocatedMinor', 'updatedAt'])
+          && d.monthKey.matches('^[0-9]{4}-(0[1-9]|1[0-2])$')
+          && isStr(d.categoryId, 1, 64)
+          && isMoney(d.allocatedMinor)
+          && id == d.monthKey + '_' + d.categoryId
+          && serverStamped(d);
+    }
+
+    function validWishlist(d) {
+      return d.keys().hasOnly(['name', 'emoji', 'costMinor', 'kind', 'importance', 'urgency', 'order',
+                               'targetDate', 'link', 'purchasedAt', 'plan', 'createdAt', 'updatedAt', 'deletedAt'])
+          && d.keys().hasAll(['name', 'costMinor', 'kind', 'createdAt', 'updatedAt'])
+          && isStr(d.name, 1, 80)
+          && optStr(d, 'emoji', 16)
+          && isMoney(d.costMinor)
+          && d.kind in ['want', 'goal']
+          && optInt(d, 'importance', 1, 5) && optInt(d, 'order', 0, 100000)
+          && (!('urgency' in d) || d.urgency == null || d.urgency in ['low', 'med', 'high'])
+          && optTs(d, 'targetDate') && optTs(d, 'purchasedAt') && optTs(d, 'deletedAt')
+          && (!('plan' in d) || d.plan == null || (d.plan is map && d.plan.size() <= 4))
+          && (!('link' in d) || d.link == null || (isStr(d.link, 0, 500) && (d.link == '' || d.link.matches('^https?://.*'))))
+          && d.createdAt is timestamp
+          && serverStamped(d);
+    }
+
+    function validRecurring(d) {
+      return d.keys().hasOnly(['type', 'amountMinor', 'categoryId', 'accountId', 'toAccountId',
+                               'wishlistItemId', 'note', 'payee', 'frequency', 'interval', 'startDate',
+                               'endDate', 'endAfter', 'dayOfMonth', 'weekday', 'mode', 'reminder',
+                               'isSubscription', 'paused', 'lastGeneratedDate',
+                               'createdAt', 'updatedAt', 'deletedAt'])
+          && d.keys().hasAll(['type', 'amountMinor', 'accountId', 'frequency', 'interval',
+                              'startDate', 'mode', 'createdAt', 'updatedAt'])
+          && d.type in ['income', 'expense', 'saving', 'transfer']
+          && isMoney(d.amountMinor)
+          && isStr(d.accountId, 1, 64)
+          && d.frequency in ['daily', 'weekly', 'monthly', 'yearly']
+          && d.interval is int && d.interval >= 1 && d.interval <= 365
+          && d.startDate is timestamp
+          && d.mode in ['auto', 'confirm']
+          && optId(d, 'categoryId') && optId(d, 'toAccountId') && optId(d, 'wishlistItemId')
+          && optStr(d, 'note', 200) && optStr(d, 'payee', 80)
+          && optTs(d, 'endDate') && optTs(d, 'lastGeneratedDate') && optTs(d, 'deletedAt')
+          && optInt(d, 'endAfter', 1, 1000) && optInt(d, 'dayOfMonth', 1, 31) && optInt(d, 'weekday', 0, 6)
+          && (!('reminder' in d) || d.reminder == null || d.reminder in ['none', '1d', '0d'])
+          && optBool(d, 'isSubscription') && optBool(d, 'paused')
+          && d.createdAt is timestamp
+          && serverStamped(d);
+    }
+
+    function validTemplate(d) {
+      return d.keys().hasOnly(['name', 'type', 'amountMinor', 'categoryId', 'accountId',
+                               'order', 'createdAt', 'updatedAt', 'deletedAt'])
+          && d.keys().hasAll(['name', 'type', 'createdAt', 'updatedAt'])
+          && isStr(d.name, 1, 40)
+          && d.type in ['income', 'expense', 'saving', 'transfer']
+          && optMoney(d, 'amountMinor') && optId(d, 'categoryId') && optId(d, 'accountId')
+          && optInt(d, 'order', 0, 1000)
+          && d.createdAt is timestamp && optTs(d, 'deletedAt')
+          && serverStamped(d);
+    }
+
+    // Lightly validated collections (v1.1 and small helper data).
+    function isLooseColl(coll) {
+      return coll in ['tags', 'debts', 'assets', 'events', 'netWorthSnapshots', 'categoryRules',
+                      'incomeRules', 'deductionTemplates', 'months', 'savedViews'];
+    }
+    function looseDoc(d) {
+      return d.keys().size() <= 40;
+    }
+
+    // ---------- rules ----------
+    match /users/{uid} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && validUser(request.resource.data);
+      allow update: if isOwner(uid) && validUser(request.resource.data);
+      allow delete: if isOwner(uid);
+
+      match /transactions/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validTransaction(request.resource.data);
+        allow update: if isOwner(uid) && validTransaction(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      match /accounts/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validAccount(request.resource.data);
+        allow update: if isOwner(uid) && validAccount(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      match /categories/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validCategory(request.resource.data);
+        allow update: if isOwner(uid) && validCategory(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      match /budgets/{id} {
+        allow read:   if isOwner(uid);
+        allow create, update: if isOwner(uid) && validBudget(request.resource.data, id);
+        allow delete: if isOwner(uid);
+      }
+
+      match /wishlist/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validWishlist(request.resource.data);
+        allow update: if isOwner(uid) && validWishlist(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      match /recurring/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validRecurring(request.resource.data);
+        allow update: if isOwner(uid) && validRecurring(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      match /templates/{id} {
+        allow read:   if isOwner(uid);
+        allow create: if isOwner(uid) && validTemplate(request.resource.data);
+        allow update: if isOwner(uid) && validTemplate(request.resource.data)
+                      && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(uid);
+      }
+
+      // Loosely validated collections. The explicit name list prevents this
+      // wildcard from accidentally granting access to any other path.
+      match /{coll}/{id} {
+        allow read:   if isOwner(uid) && isLooseColl(coll);
+        allow write:  if isOwner(uid) && isLooseColl(coll)
+                      && (request.method == 'delete' || looseDoc(request.resource.data));
+      }
+
+      match /debts/{debtId}/payments/{pid} {
+        allow read:  if isOwner(uid);
+        allow write: if isOwner(uid) && (request.method == 'delete' || looseDoc(request.resource.data));
+      }
+    }
+
+    // Public, read-only app configuration (update gate + feature flags).
+    match /config/{docId} {
+      allow read:  if docId == 'app';
+      allow write: if false;
+    }
+  }
+}

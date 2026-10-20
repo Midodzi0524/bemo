@@ -1,0 +1,420 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and preferences in Bemo budget manager",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique auth UID of user"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Display name of user"
+        },
+        "currencyCode": {
+          "type": "string",
+          "description": "Currency code e.g. GHS"
+        },
+        "hideAmounts": {
+          "type": "boolean",
+          "description": "Mask sensitive balances in UI"
+        },
+        "pinEnabled": {
+          "type": "boolean",
+          "description": "Whether passcode screen is enabled"
+        },
+        "monthlyIncomeLimitPesewas": {
+          "type": "integer",
+          "description": "Monthly income target or ceiling in pesewas"
+        },
+        "monthlyExpenseLimitPesewas": {
+          "type": "integer",
+          "description": "Monthly expense ceiling in pesewas"
+        },
+        "hasCompletedOnboarding": {
+          "type": "boolean",
+          "description": "Whether onboarding has been completed"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["userId", "userName", "currencyCode", "createdAt"]
+    },
+    "Account": {
+      "title": "Account",
+      "description": "Financial account (Cash, Mobile Money, Bank, Savings)",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Account unique ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Account label"
+        },
+        "emoji": {
+          "type": "string",
+          "description": "Account emoji icon"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["CASH", "MOMO", "BANK", "SAVINGS", "OTHER"],
+          "description": "Account category"
+        },
+        "openingBalancePesewas": {
+          "type": "integer",
+          "description": "Opening balance in pesewas (100 pesewas = 1 GHS)"
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Default account for quick entries"
+        },
+        "isArchived": {
+          "type": "boolean",
+          "description": "Whether account is archived"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["id", "userId", "name", "emoji", "kind", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Transaction category for budgeting and classification",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Category ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Category name"
+        },
+        "emoji": {
+          "type": "string",
+          "description": "Category emoji icon"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["EXPENSE", "INCOME"],
+          "description": "Category kind"
+        },
+        "bgTintHex": {
+          "type": "string",
+          "description": "Background color hex"
+        },
+        "textTintHex": {
+          "type": "string",
+          "description": "Text color hex"
+        },
+        "isStarter": {
+          "type": "boolean",
+          "description": "Whether starter category"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["id", "userId", "name", "emoji", "kind", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Income, expense, saving, or transfer transaction record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Transaction unique identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["EXPENSE", "INCOME", "SAVING", "TRANSFER"],
+          "description": "Transaction movement type"
+        },
+        "amountPesewas": {
+          "type": "integer",
+          "description": "Amount in pesewas (positive integer)"
+        },
+        "accountId": {
+          "type": "string",
+          "description": "Source account ID"
+        },
+        "toAccountId": {
+          "type": "string",
+          "description": "Destination account ID for transfers"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Associated category ID"
+        },
+        "dateMillis": {
+          "type": "integer",
+          "description": "Transaction date in Unix epoch milliseconds"
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional notes or description"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["POSTED", "PENDING", "PLANNED"],
+          "description": "Transaction settlement status"
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Soft deletion flag for undo support"
+        },
+        "deletedAtMillis": {
+          "type": "integer",
+          "description": "Timestamp when deleted"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["id", "userId", "type", "amountPesewas", "accountId", "dateMillis", "createdAt"]
+    },
+    "WishlistItem": {
+      "title": "WishlistItem",
+      "description": "Savings goal or wishlist item with target and accumulated progress",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Goal or wishlist ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Goal title"
+        },
+        "targetAmountPesewas": {
+          "type": "integer",
+          "description": "Target amount in pesewas"
+        },
+        "savedAmountPesewas": {
+          "type": "integer",
+          "description": "Saved amount in pesewas"
+        },
+        "emoji": {
+          "type": "string",
+          "description": "Emoji avatar"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["GOAL", "WANT"],
+          "description": "Goal or wish"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["HIGH", "MEDIUM", "LOW"],
+          "description": "Priority tier"
+        },
+        "categoryTag": {
+          "type": "string",
+          "description": "Category or label tag"
+        },
+        "targetDateMillis": {
+          "type": "integer",
+          "description": "Target completion date in epoch millis"
+        },
+        "isPurchased": {
+          "type": "boolean",
+          "description": "Whether item has been purchased / achieved"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Additional notes"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["id", "userId", "title", "targetAmountPesewas", "createdAt"]
+    },
+    "RecurringRule": {
+      "title": "RecurringRule",
+      "description": "Scheduled or repeating bill/income rule",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Rule unique ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Recurring bill or income title"
+        },
+        "amountPesewas": {
+          "type": "integer",
+          "description": "Amount in pesewas"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["EXPENSE", "INCOME", "SAVING", "TRANSFER"],
+          "description": "Transaction type"
+        },
+        "frequency": {
+          "type": "string",
+          "enum": ["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY", "YEARLY"],
+          "description": "Interval frequency"
+        },
+        "nextDueDateMillis": {
+          "type": "integer",
+          "description": "Next scheduled date in epoch millis"
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Category ID"
+        },
+        "accountId": {
+          "type": "string",
+          "description": "Source or target account ID"
+        },
+        "autoPost": {
+          "type": "boolean",
+          "description": "Auto-post vs confirm reminder"
+        },
+        "isSubscription": {
+          "type": "boolean",
+          "description": "Subscription flag"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Active status flag"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["id", "userId", "title", "amountPesewas", "frequency", "nextDueDateMillis", "categoryId", "accountId", "createdAt"]
+    },
+    "BudgetAllocation": {
+      "title": "BudgetAllocation",
+      "description": "Monthly planned budget envelope for a category",
+      "type": "object",
+      "properties": {
+        "categoryId": {
+          "type": "string",
+          "description": "Category ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user UID"
+        },
+        "assignedPesewas": {
+          "type": "integer",
+          "description": "Amount allocated in pesewas"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Client must submit FieldValue.serverTimestamp()"
+        }
+      },
+      "required": ["categoryId", "userId", "assignedPesewas", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile, budget limits, and app configuration"
+    },
+    "/users/{userId}/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "User bank, cash, MoMo, and savings accounts"
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": "Category",
+      "description": "Expense and income classification categories"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial ledger transactions and money transfers"
+    },
+    "/users/{userId}/wishlist/{wishlistId}": {
+      "schema": "WishlistItem",
+      "description": "Savings goals, wants, and wishlist items"
+    },
+    "/users/{userId}/recurring/{recurringId}": {
+      "schema": "RecurringRule",
+      "description": "Recurring bills and subscriptions"
+    },
+    "/users/{userId}/budgetAllocations/{allocationId}": {
+      "schema": "BudgetAllocation",
+      "description": "Monthly planned budget allocations per category"
+    }
+  }
+}

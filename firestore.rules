@@ -1,0 +1,238 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.userName is string && data.userName.size() > 0 && data.userName.size() <= 64 &&
+             data.currencyCode is string && data.currencyCode.size() <= 8 &&
+             data.hideAmounts is bool &&
+             data.pinEnabled is bool &&
+             data.monthlyIncomeLimitPesewas is int && data.monthlyIncomeLimitPesewas >= 0 &&
+             data.monthlyExpenseLimitPesewas is int && data.monthlyExpenseLimitPesewas >= 0 &&
+             data.hasCompletedOnboarding is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidAccount(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 64 &&
+             data.emoji is string && data.emoji.size() <= 16 &&
+             data.kind in ['CASH', 'MOMO', 'BANK', 'SAVINGS', 'OTHER'] &&
+             data.openingBalancePesewas is int &&
+             data.isDefault is bool &&
+             data.isArchived is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidCategory(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 64 &&
+             data.emoji is string && data.emoji.size() <= 16 &&
+             data.kind in ['EXPENSE', 'INCOME'] &&
+             (!('bgTintHex' in data) || (data.bgTintHex is string && data.bgTintHex.size() <= 16)) &&
+             (!('textTintHex' in data) || (data.textTintHex is string && data.textTintHex.size() <= 16)) &&
+             data.isStarter is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidTransaction(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.type in ['EXPENSE', 'INCOME', 'SAVING', 'TRANSFER'] &&
+             data.amountPesewas is int && data.amountPesewas >= 0 &&
+             data.accountId is string && isValidId(data.accountId) &&
+             (!('toAccountId' in data) || (data.toAccountId is string && isValidId(data.toAccountId))) &&
+             (!('categoryId' in data) || (data.categoryId is string && isValidId(data.categoryId))) &&
+             data.dateMillis is int &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 500)) &&
+             data.status in ['POSTED', 'PENDING', 'PLANNED'] &&
+             data.isDeleted is bool &&
+             (!('deletedAtMillis' in data) || data.deletedAtMillis is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidWishlist(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.targetAmountPesewas is int && data.targetAmountPesewas >= 0 &&
+             data.savedAmountPesewas is int && data.savedAmountPesewas >= 0 &&
+             (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 16)) &&
+             data.kind in ['GOAL', 'WANT'] &&
+             data.priority in ['HIGH', 'MEDIUM', 'LOW'] &&
+             (!('categoryTag' in data) || (data.categoryTag is string && data.categoryTag.size() <= 64)) &&
+             (!('targetDateMillis' in data) || data.targetDateMillis is int) &&
+             data.isPurchased is bool &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidRecurring(data) {
+      return data.id is string && isValidId(data.id) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 100 &&
+             data.amountPesewas is int && data.amountPesewas >= 0 &&
+             data.type in ['EXPENSE', 'INCOME', 'SAVING', 'TRANSFER'] &&
+             data.frequency in ['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'YEARLY'] &&
+             data.nextDueDateMillis is int &&
+             data.categoryId is string && isValidId(data.categoryId) &&
+             data.accountId is string && isValidId(data.accountId) &&
+             data.autoPost is bool &&
+             data.isSubscription is bool &&
+             data.isActive is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidBudgetAllocation(data) {
+      return data.categoryId is string && isValidId(data.categoryId) &&
+             data.userId is string && data.userId == request.auth.uid &&
+             data.assignedPesewas is int && data.assignedPesewas >= 0 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().createdAt is timestamp &&
+                       isValidUserProfile(incoming());
+      allow update: if isOwner(userId) && isValidId(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming());
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /accounts/{accountId} {
+        allow get: if isOwner(userId) && isValidId(accountId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(accountId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == accountId &&
+                         incoming().createdAt is timestamp &&
+                         isValidAccount(incoming());
+        allow update: if isOwner(userId) && isValidId(accountId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidAccount(incoming());
+        allow delete: if isOwner(userId) && isValidId(accountId);
+      }
+
+      match /categories/{categoryId} {
+        allow get: if isOwner(userId) && isValidId(categoryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(categoryId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == categoryId &&
+                         incoming().createdAt is timestamp &&
+                         isValidCategory(incoming());
+        allow update: if isOwner(userId) && isValidId(categoryId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidCategory(incoming());
+        allow delete: if isOwner(userId) && isValidId(categoryId);
+      }
+
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(transactionId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == transactionId &&
+                         incoming().createdAt is timestamp &&
+                         isValidTransaction(incoming());
+        allow update: if isOwner(userId) && isValidId(transactionId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidTransaction(incoming());
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      match /wishlist/{wishlistId} {
+        allow get: if isOwner(userId) && isValidId(wishlistId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(wishlistId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == wishlistId &&
+                         incoming().createdAt is timestamp &&
+                         isValidWishlist(incoming());
+        allow update: if isOwner(userId) && isValidId(wishlistId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidWishlist(incoming());
+        allow delete: if isOwner(userId) && isValidId(wishlistId);
+      }
+
+      match /recurring/{recurringId} {
+        allow get: if isOwner(userId) && isValidId(recurringId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(recurringId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().id == recurringId &&
+                         incoming().createdAt is timestamp &&
+                         isValidRecurring(incoming());
+        allow update: if isOwner(userId) && isValidId(recurringId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().id == existing().id &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidRecurring(incoming());
+        allow delete: if isOwner(userId) && isValidId(recurringId);
+      }
+
+      match /budgetAllocations/{allocationId} {
+        allow get: if isOwner(userId) && isValidId(allocationId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(allocationId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().categoryId == allocationId &&
+                         incoming().createdAt is timestamp &&
+                         isValidBudgetAllocation(incoming());
+        allow update: if isOwner(userId) && isValidId(allocationId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().categoryId == existing().categoryId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidBudgetAllocation(incoming());
+        allow delete: if isOwner(userId) && isValidId(allocationId);
+      }
+    }
+  }
+}
